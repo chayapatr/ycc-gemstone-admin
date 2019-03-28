@@ -7,7 +7,6 @@ import 'firebase/auth'
 
 import "./assets/css/gem.css"
 import "./assets/material-icon/material-icons.css"
-import { selector } from 'postcss-selector-parser';
 
 let config = {
     apiKey: "AIzaSyD69fVmX1N539fYPjj4X2mu7hDR4LYAnL8",
@@ -28,12 +27,13 @@ class App extends React.Component {
         loginBorder: "grey",
         targetUID: "",
         point: 0,
-        type: undefined
+        type: "",
+        process:false,
+        status:undefined
     }
 
     componentDidMount(){
         firebase.auth().onAuthStateChanged(user => {
-            console.log(user);
             if(user) return this.setState({ auth: user.uid });
             this.setState({ auth:false });
         });
@@ -43,7 +43,8 @@ class App extends React.Component {
         e.preventDefault();
         firebase.auth().signInWithEmailAndPassword("gemstone@ycc.in.th",this.state.password).then(user => {
             this.setState({
-                auth: user.uid
+                auth: user.uid,
+                password: ""
             })
         }).catch(err => {
             this.setState({
@@ -74,8 +75,40 @@ class App extends React.Component {
         })
     }
 
-    updateScore(e){
+    async updateScore(e){
         e.preventDefault();
+        this.setState({
+            process: true
+        });
+        await firestore.collection("gemstone").doc(this.state.targetUID).get().then(async doc => {
+            if(!doc.exists) throw {error: "No UID found", status: "No UID found"};
+            let currentPoint = parseInt(doc.data().point, 10),
+                point = parseInt(this.state.point, 10);
+
+            if(this.state.type === "increase"){
+                await firestore.collection("gemstone").doc(this.state.targetUID).update({
+                    point: currentPoint + point
+                });
+                this.setState({
+                    process: false
+                });        
+            } else if(this.state.type === "decrease") {
+                firestore.collection("gemstone").doc(this.state.targetUID).update({
+                    point: currentPoint - point
+                });
+            } else {
+                throw {error: "WTF", status: "WTF"};
+            }
+            this.setState({
+                process: false,
+                status: true
+            });
+        }).catch(err => {
+            this.setState({
+                process: false,
+                status: false
+            });
+        })
     }
 
     render(){
@@ -97,13 +130,40 @@ class App extends React.Component {
         } else if(this.state.auth){
             return(
                 <div id="gemstone">
+                    {this.state.process ?
+                        <div id="loadscreen">
+                            <div className="loader">
+                                <svg className="circular" viewBox="25 25 50 50">
+                                    <circle className="path" cx="50" cy="50" r="20" fill="none" strokeWidth="2" strokeMiterlimit="10"/>
+                                </svg>
+                                <svg className="circular circular-shadow" viewBox="25 25 50 50">
+                                    <circle className="path path-shadow" cx="50" cy="50" r="20" fill="none" strokeWidth="2" strokeMiterlimit="10"/>
+                                </svg>
+                            </div>
+                        </div>
+                        : null
+                    }
+                    {this.state.status === true ?
+                        <div id="modal-wrapper" onClick={() => this.setState({status: undefined})}>
+                            <div id="modal">
+                                Updated!
+                            </div>
+                        </div>
+                    : null}
+                    {this.state.status === false ?
+                        <div id="modal-wrapper" onClick={() => this.setState({status: undefined})}>
+                            <div id="modal" style={{color: "var(--danger)"}}>
+                                Failed to update
+                            </div>
+                        </div>
+                    : null}
                     <div id="card-wrapper">
                         <div id='card-icon-wrapper'>
                             <i className="material-icons" id="card-icon">
                                 settings
                             </i>
                         </div>
-                        <form id='card-body'>
+                        <form id='card-body' onSubmit={e => this.updateScore(e)}>
                             <h1 id="card-title">Admin</h1>
                             <input
                                 className="input-text"
@@ -119,18 +179,25 @@ class App extends React.Component {
                                 onChange={e => this.setState({ point: e.target.value })}
                             />
                             <div id="number-type">
-                                <button 
-                                    onClick={e => selectPlus(e)} className="number-option">
-                                    +
-                                </button>
+                                { this.state.type === "increase" ?
+                                    <button 
+                                        onClick={e => this.selectPlus(e)} className="number-option active">
+                                        +
+                                    </button>
+                                    :
+                                    <button 
+                                        onClick={e => this.selectPlus(e)} className="number-option">
+                                        +
+                                    </button>
+                                }
                                 { this.state.type === "decrease" ?
                                     <button
-                                        onClick={e => selectMinus(e) } className="number-option active">
+                                        onClick={e => this.selectMinus(e) } className="number-option active">
                                         -
                                     </button>
                                     :
                                     <button
-                                        onClick={e => selectMinus(e) } className="number-option">
+                                        onClick={e => this.selectMinus(e) } className="number-option">
                                         -
                                     </button>
                                 }
@@ -155,7 +222,7 @@ class App extends React.Component {
                         <form id='card-body' onSubmit={e => this.login(e)}>
                             <h1 id="card-title">Admin</h1>
                             <input 
-                                id="password"
+                                className="input-text"
                                 style={{borderColor: this.state.loginBorder }}
                                 type="password"
                                 placeholder="password"
