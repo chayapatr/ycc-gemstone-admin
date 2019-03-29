@@ -80,28 +80,30 @@ class App extends React.Component {
         this.setState({
             process: true
         });
-        await firestore.collection("gemstone").doc(this.state.targetUID).get().then(async doc => {
-            if(!doc.exists) throw {error: "No UID found", status: "No UID found"};
-            let currentPoint = parseInt(doc.data().point, 10),
-                point = parseInt(this.state.point, 10);
+        
+        await firestore.collection("gemstone").where("name","==",this.state.targetUID).get().then(async snapshot => {
+            snapshot.forEach(async doc => {
+                let currentPoint = parseInt(doc.data().point, 10),
+                    point = parseInt(this.state.point, 10);
 
-            if(this.state.type === "increase"){
-                await firestore.collection("gemstone").doc(this.state.targetUID).update({
-                    point: currentPoint + point
-                });
+                if(this.state.type === "increase"){
+                    await firestore.collection("gemstone").doc(doc.id).update({
+                        point: currentPoint + point
+                    });
+                    this.setState({
+                        process: false
+                    });
+                } else if(this.state.type === "decrease") {
+                    firestore.collection("gemstone").doc(doc.id).update({
+                        point: currentPoint - point
+                    });
+                } else {
+                    throw {error: "WTF", status: "WTF"};
+                }
                 this.setState({
-                    process: false
-                });        
-            } else if(this.state.type === "decrease") {
-                firestore.collection("gemstone").doc(this.state.targetUID).update({
-                    point: currentPoint - point
+                    process: false,
+                    status: true
                 });
-            } else {
-                throw {error: "WTF", status: "WTF"};
-            }
-            this.setState({
-                process: false,
-                status: true
             });
         }).catch(err => {
             this.setState({
@@ -172,7 +174,7 @@ class App extends React.Component {
                                 <h1 id="card-title">Admin</h1>
                                 <input
                                     className="input-text"
-                                    placeholder="UID"
+                                    placeholder="name"
                                     type="text"
                                     onChange={e => this.setState({ targetUID: e.target.value })}
                                     value={this.state.targetUID}
