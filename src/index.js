@@ -82,6 +82,7 @@ class App extends React.Component {
         });
         
         await firestore.collection("gemstone").where("name","==",this.state.targetUID).get().then(async snapshot => {
+            if(snapshot.empty) throw "err"
             snapshot.forEach(async doc => {
                 let currentPoint = parseInt(doc.data().point, 10),
                     point = parseInt(this.state.point, 10);
